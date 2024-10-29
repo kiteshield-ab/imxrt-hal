@@ -86,12 +86,13 @@ features = ["imxrt-ral/imxrt1062", "imxrt1060"]
 ###############
 
 [features]
-default = ["imxrt-usbd"]
+default = []
 imxrt1010 = ["imxrt-iomuxc/imxrt1010"]
 imxrt1020 = ["imxrt-iomuxc/imxrt1020"]
 imxrt1060 = ["imxrt-iomuxc/imxrt1060"]
 imxrt1064 = ["imxrt-iomuxc/imxrt1060"]
 imxrt1170 = ["imxrt-iomuxc/imxrt1170"]
+imxrt1180 = ["imxrt-iomuxc/imxrt1180"]
 
 ################
 # Extra features
@@ -106,14 +107,14 @@ members = ["board", "logging"]
 
 [workspace.dependencies]
 imxrt-dma = "0.1"
-imxrt-iomuxc = "0.2.1"
+imxrt-iomuxc = { git = "https://github.com/kiteshield-ab/imxrt-iomuxc.git", branch = "rt1180" }
 imxrt-hal = { version = "0.5", path = "." }
 imxrt-log = { path = "logging", default-features = false, features = [
     "log",
     "lpuart",
     "usbd",
 ] }
-imxrt-ral = "0.5"
+imxrt-ral = { git = "https://github.com/kiteshield-ab/imxrt-ral.git", branch = "rt1180" }
 imxrt-rt = "0.1"
 imxrt-usbd = "0.3"
 
