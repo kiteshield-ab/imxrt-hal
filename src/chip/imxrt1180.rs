@@ -1,5 +1,5 @@
 pub mod gpio;
-pub mod ccm {}
+pub mod ccm;
 pub mod dma {}
 
 pub(crate) mod reexports {
