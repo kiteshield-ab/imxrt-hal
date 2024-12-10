@@ -25,6 +25,12 @@ mod drivers {
 pub(crate) mod config {
     pub use imxrt_iomuxc::imxrt1180 as pads;
 
-    /// The minimum number of DMA channels per controller.
+    /// Minimum number of channels.
     pub const DMA_CHANNEL_COUNT: usize = 32;
+
+    /// The number of DMA channels for eDMA3.
+    pub const DMA3_CHANNEL_COUNT: usize = 32;
+
+    /// The number of DMA channels for eDMA4.
+    pub const DMA4_CHANNEL_COUNT: usize = 64;
 }

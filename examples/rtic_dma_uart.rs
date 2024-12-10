@@ -7,11 +7,13 @@
 #![no_std]
 #![no_main]
 
+use hal::dma::channel::DmaChannel;
 use imxrt_hal as hal;
 
 #[rtic::app(device = board, peripherals = false)]
 mod app {
     use super::{dma_receive, dma_transfer, hal};
+    use hal::dma::channel::DmaChannel;
 
     /// What's our UART state?
     pub enum State {

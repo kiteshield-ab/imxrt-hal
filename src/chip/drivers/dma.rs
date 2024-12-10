@@ -1,9 +1,8 @@
 //! Chip-specific DMA APIs.
 
-#[cfg(not(chip = "imxrt1180"))]
-use crate::ral;
-
-use crate::common::dma::channel::Channel;
+#[cfg(chip = "imxrt1180")]
+use crate::config::{DMA3_CHANNEL_COUNT, DMA4_CHANNEL_COUNT};
+use crate::dma::peripheral;
 
 /// The total number of DMA channels.
 ///
@@ -25,8 +24,8 @@ pub const CHANNEL_COUNT: usize = crate::chip::config::DMA_CHANNEL_COUNT;
 // Safety: pointers come from RAL, and are correct for the selected chip.
 // DMA channel count is also valid for the chip selection.
 #[cfg(not(chip = "imxrt1180"))]
-pub static DMA: crate::common::dma::Dma<{ CHANNEL_COUNT }> = unsafe {
-    crate::common::dma::Dma::new(
+pub static DMA: crate::common::dma::DMA<{ CHANNEL_COUNT }> = unsafe {
+    crate::common::dma::DMA::new(
         crate::ral::dma::DMA.cast(),
         crate::ral::dmamux::DMAMUX.cast(),
     )
@@ -40,9 +39,15 @@ pub static DMA: crate::common::dma::Dma<{ CHANNEL_COUNT }> = unsafe {
 /// When `channels` returns, each element is guaranteed to hold `Some` channel.
 /// You may then `take()` the channel, leaving `None` in its place.
 #[cfg(not(chip = "imxrt1180"))]
-pub fn channels(_: ral::dma::DMA, _: ral::dmamux::DMAMUX) -> [Option<Channel>; CHANNEL_COUNT] {
-    const NO_CHANNEL: Option<Channel> = None;
-    let mut channels: [Option<Channel>; CHANNEL_COUNT] = [NO_CHANNEL; CHANNEL_COUNT];
+pub fn channels(
+    _: crate::ral::dma::DMA,
+    _: crate::ral::dmamux::DMAMUX,
+) -> [Option<crate::common::dma::DMAChannel>; CHANNEL_COUNT] {
+    use crate::common::dma::channel::DmaChannel;
+
+    const NO_CHANNEL: Option<crate::common::dma::DMAChannel> = None;
+    let mut channels: [Option<crate::common::dma::DMAChannel>; CHANNEL_COUNT] =
+        [NO_CHANNEL; CHANNEL_COUNT];
 
     for (idx, channel) in channels.iter_mut().enumerate() {
         // Safety: we own the DMA instances, so we're OK to fabricate the channels.
@@ -60,16 +65,28 @@ pub fn channels(_: ral::dma::DMA, _: ral::dmamux::DMAMUX) -> [Option<Channel>; C
 /// You're responsible for making sure those DMA channels are compatible
 /// with your peripheral.
 #[cfg(chip = "imxrt1180")]
-pub static DMA3: crate::common::dma::Dma<{ CHANNEL_COUNT }> =
-    unsafe { crate::common::dma::Dma::new_edma3(0x4400_0000 as *const ()) };
+pub static DMA3: crate::common::dma::DMA3 =
+    unsafe { crate::common::dma::DMA3::new_edma3(0x4400_0000 as *const _) };
+
+/// The eDMA4 driver.
+///
+/// This provides a way to allocate DMA channels associated with eDMA4.
+/// You're responsible for making sure those DMA channels are compatible
+/// with your peripheral.
+#[cfg(chip = "imxrt1180")]
+pub static DMA4: crate::common::dma::DMA4 =
+    unsafe { crate::common::dma::DMA4::new_edma4(0x4200_0000 as *const _) };
 
 /// # Safety
 ///
 /// Using this more than once aliases DMA channels.
 #[cfg(chip = "imxrt1180")]
-pub unsafe fn channels() -> [Option<Channel>; CHANNEL_COUNT] {
-    const NO_CHANNEL: Option<Channel> = None;
-    let mut channels: [Option<Channel>; CHANNEL_COUNT] = [NO_CHANNEL; CHANNEL_COUNT];
+pub unsafe fn dma3_channels() -> [Option<imxrt_dma::DMA3Channel>; DMA3_CHANNEL_COUNT] {
+    use imxrt_dma::channel::DmaChannel;
+
+    const NO_CHANNEL: Option<imxrt_dma::DMA3Channel> = None;
+    let mut channels: [Option<imxrt_dma::DMA3Channel>; DMA3_CHANNEL_COUNT] =
+        [NO_CHANNEL; DMA3_CHANNEL_COUNT];
 
     // Safety: User assumes the risk of calling this more than once
     // and racing on this modification.
@@ -88,12 +105,39 @@ pub unsafe fn channels() -> [Option<Channel>; CHANNEL_COUNT] {
     channels
 }
 
+/// # Safety
+///
+/// Using this more than once aliases DMA channels.
+#[cfg(chip = "imxrt1180")]
+pub unsafe fn dma4_channels() -> [Option<imxrt_dma::DMA4Channel>; DMA4_CHANNEL_COUNT] {
+    use imxrt_dma::channel::DmaChannel;
+
+    const NO_CHANNEL: Option<imxrt_dma::DMA4Channel> = None;
+    let mut channels: [Option<imxrt_dma::DMA4Channel>; DMA4_CHANNEL_COUNT] =
+        [NO_CHANNEL; DMA4_CHANNEL_COUNT];
+
+    // Safety: User assumes the risk of calling this more than once
+    // and racing on this modification.
+    unsafe { DMA4.set_global_id_replication(true) };
+
+    for (idx, channel) in channels.iter_mut().enumerate() {
+        // Safety: User assumes the risk of calling this more than once and aliasing
+        // the channels.
+        let mut chan = unsafe { DMA4.channel(idx) };
+        chan.reset();
+        chan.set_id_replication(true);
+        chan.set_privilege_protection(true);
+        chan.set_secure_protection(true);
+        *channel = Some(chan);
+    }
+    channels
+}
+
 //
 // Peripheral implementations.
 //
 // These depend on DMA MUX peripheral mappings, which are chip (family) specific.
 //
-use crate::dma::peripheral;
 
 #[cfg(any(chip = "imxrt1010", chip = "imxrt1020", chip = "imxrt1060"))]
 mod mappings {
@@ -117,12 +161,46 @@ mod mappings {
 }
 #[cfg(chip = "imxrt1180")]
 mod mappings {
-    pub(super) const LPUART_DMA_RX_MAPPING: [u32; 1] = [17];
-    pub(super) const LPUART_DMA_TX_MAPPING: [u32; 1] = [16];
+    // NOTE: All signals are ing this one mapping even though they are related to both eDMAs.
+    pub(super) const LPUART_DMA_RX_MAPPING: [u32; 8] = [
+        17,  // On eDMA3
+        19,  // On eDMA3
+        18,  // On eDMA4
+        20,  // On eDMA4
+        22,  // On eDMA4
+        24,  // On eDMA4
+        30,  // On eDMA3
+        179, // On eDMA4
+    ];
+    pub(super) const LPUART_DMA_TX_MAPPING: [u32; 8] = [
+        16,  // On eDMA3
+        18,  // On eDMA3
+        17,  // On eDMA4
+        19,  // On eDMA4
+        21,  // On eDMA4
+        23,  // On eDMA4
+        29,  // On eDMA3
+        178, // On eDMA4
+    ];
 
-    pub(super) const LPSPI_DMA_RX_MAPPING: [u32; 0] = [];
-    pub(super) const LPSPI_DMA_TX_MAPPING: [u32; 0] = [];
+    pub(super) const LPSPI_DMA_RX_MAPPING: [u32; 6] = [
+        12,  // On eDMA3
+        14,  // On eDMA3
+        13,  // On eDMA4
+        15,  // On eDMA4
+        168, // On eDMA4
+        170, // On eDMA4
+    ];
+    pub(super) const LPSPI_DMA_TX_MAPPING: [u32; 6] = [
+        11,  // On eDMA3
+        13,  // On eDMA3
+        12,  // On eDMA4
+        14,  // On eDMA4
+        167, // On eDMA4
+        169, // On eDMA4
+    ];
 }
+
 use mappings::*;
 
 // LPUART
@@ -159,31 +237,6 @@ unsafe impl<P, const N: u8> peripheral::Source<u8> for lpuart::Lpuart<P, N> {
     }
     fn disable_source(&mut self) {
         self.disable_dma_receive();
-    }
-}
-
-impl<P, const N: u8> lpuart::Lpuart<P, N> {
-    /// Use a DMA channel to write data to the UART peripheral
-    ///
-    /// Completes when all data in `buffer` has been written to the UART
-    /// peripheral.
-    pub fn dma_write<'a>(
-        &'a mut self,
-        channel: &'a mut Channel,
-        buffer: &'a [u8],
-    ) -> peripheral::Write<'a, Self, u8> {
-        peripheral::write(channel, buffer, self)
-    }
-
-    /// Use a DMA channel to read data from the UART peripheral
-    ///
-    /// Completes when `buffer` is filled.
-    pub fn dma_read<'a>(
-        &'a mut self,
-        channel: &'a mut Channel,
-        buffer: &'a mut [u8],
-    ) -> peripheral::Read<'a, Self, u8> {
-        peripheral::read(channel, self, buffer)
     }
 }
 
@@ -224,71 +277,242 @@ unsafe impl<P, const N: u8> peripheral::Destination<u32> for lpspi::Lpspi<P, N> 
     }
 }
 
-// Safety: a LPSPI can perform bi-directional I/O from a single buffer. Reads from
-// the buffer are always performed before writes.
-unsafe impl<P, const N: u8> peripheral::Bidirectional<u32> for lpspi::Lpspi<P, N> {}
+#[cfg(chip = "imxrt1180")]
+mod dma_impls {
+    use imxrt_dma::{DMA3Channel, DMA4Channel};
 
-impl<P, const N: u8> lpspi::Lpspi<P, N> {
-    /// Use a DMA channel to write data to the LPSPI peripheral.
-    ///
-    /// The future completes when all data in `buffer` has been written to the
-    /// peripheral. This call may block until space is available in the
-    /// command queue. An error indicates that there was an issue preparing the
-    /// transaction, or there was an issue while waiting for space in the command
-    /// queue.
-    pub fn dma_write<'a>(
-        &'a mut self,
-        channel: &'a mut Channel,
-        buffer: &'a [u32],
-    ) -> Result<peripheral::Write<'a, Self, u32>, lpspi::LpspiError> {
-        let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
-        transaction.bit_order = self.bit_order();
+    use crate::dma::peripheral;
+    use crate::{lpspi, lpuart};
 
-        transaction.receive_data_mask = true;
-        self.wait_for_transmit_fifo_space()?;
-        self.enqueue_transaction(&transaction);
-        Ok(peripheral::write(channel, buffer, self))
+    // LPUART, we need different `Channel` types depending on LPUART to make the conenction between
+    // DMAs and peripheral correct.
+
+    // Safety: a LPSPI can perform bi-directional I/O from a single buffer. Reads from
+    // the buffer are always performed before writes.
+    unsafe impl<P, const N: u8> peripheral::Bidirectional<u32> for lpspi::Lpspi<P, N> {}
+
+    macro_rules! lpuart_impl {
+        ($channel:ident, $n:literal) => {
+            impl<P> lpuart::Lpuart<P, $n> {
+                /// Use a DMA channel to write data to the UART peripheral
+                ///
+                /// Completes when all data in `buffer` has been written to the UART
+                /// peripheral.
+                pub fn dma_write<'a>(
+                    &'a mut self,
+                    channel: &'a mut $channel,
+                    buffer: &'a [u8],
+                ) -> peripheral::Write<'a, Self, u8, $channel> {
+                    peripheral::write(channel, buffer, self)
+                }
+
+                /// Use a DMA channel to read data from the UART peripheral
+                ///
+                /// Completes when `buffer` is filled.
+                pub fn dma_read<'a>(
+                    &'a mut self,
+                    channel: &'a mut $channel,
+                    buffer: &'a mut [u8],
+                ) -> peripheral::Read<'a, Self, u8, $channel> {
+                    peripheral::read(channel, self, buffer)
+                }
+            }
+        };
     }
 
-    /// Use a DMA channel to read data from the LPSPI peripheral.
-    ///
-    /// The future completes when `buffer` is filled. This call may block until
-    /// space is available in the command queue. An error indicates that there was
-    /// an issue preparing the transaction, or there was an issue waiting for space
-    /// in the command queue.
-    pub fn dma_read<'a>(
-        &'a mut self,
-        channel: &'a mut Channel,
-        buffer: &'a mut [u32],
-    ) -> Result<peripheral::Read<'a, Self, u32>, lpspi::LpspiError> {
-        let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
-        transaction.bit_order = self.bit_order();
+    lpuart_impl!(DMA3Channel, 1);
+    lpuart_impl!(DMA3Channel, 2);
+    lpuart_impl!(DMA3Channel, 7);
 
-        transaction.transmit_data_mask = true;
-        self.wait_for_transmit_fifo_space()?;
-        self.enqueue_transaction(&transaction);
-        Ok(peripheral::read(channel, self, buffer))
+    lpuart_impl!(DMA4Channel, 3);
+    lpuart_impl!(DMA4Channel, 4);
+    lpuart_impl!(DMA4Channel, 5);
+    lpuart_impl!(DMA4Channel, 6);
+    lpuart_impl!(DMA4Channel, 8);
+
+    macro_rules! lpspi_impl {
+        ($channel:ident, $n:literal) => {
+            impl<P> lpspi::Lpspi<P, $n> {
+                /// Use a DMA channel to write data to the LPSPI peripheral.
+                ///
+                /// The future completes when all data in `buffer` has been written to the
+                /// peripheral. This call may block until space is available in the
+                /// command queue. An error indicates that there was an issue preparing the
+                /// transaction, or there was an issue while waiting for space in the command
+                /// queue.
+                pub fn dma_write<'a>(
+                    &'a mut self,
+                    channel: &'a mut $channel,
+                    buffer: &'a [u32],
+                ) -> Result<peripheral::Write<'a, Self, u32, $channel>, lpspi::LpspiError> {
+                    let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
+                    transaction.bit_order = self.bit_order();
+
+                    transaction.receive_data_mask = true;
+                    self.wait_for_transmit_fifo_space()?;
+                    self.enqueue_transaction(&transaction);
+                    Ok(peripheral::write(channel, buffer, self))
+                }
+
+                /// Use a DMA channel to read data from the LPSPI peripheral.
+                ///
+                /// The future completes when `buffer` is filled. This call may block until
+                /// space is available in the command queue. An error indicates that there was
+                /// an issue preparing the transaction, or there was an issue waiting for space
+                /// in the command queue.
+                pub fn dma_read<'a>(
+                    &'a mut self,
+                    channel: &'a mut $channel,
+                    buffer: &'a mut [u32],
+                ) -> Result<peripheral::Read<'a, Self, u32, $channel>, lpspi::LpspiError> {
+                    let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
+                    transaction.bit_order = self.bit_order();
+
+                    transaction.transmit_data_mask = true;
+                    self.wait_for_transmit_fifo_space()?;
+                    self.enqueue_transaction(&transaction);
+                    Ok(peripheral::read(channel, self, buffer))
+                }
+
+                /// Use a DMA channel to simultaneously read and write from a buffer
+                /// and the LPSPI peripheral.
+                ///
+                /// The future completes when `buffer` is filled and after sending `buffer` elements.
+                /// This call may block until space is available in the command queue. An error
+                /// indicates that there was an issue preparing the transaction, or there was an
+                /// issue waiting for space in the command queue.
+                pub fn dma_full_duplex<'a>(
+                    &'a mut self,
+                    rx: &'a mut $channel,
+                    tx: &'a mut $channel,
+                    buffer: &'a mut [u32],
+                ) -> Result<
+                    peripheral::FullDuplex<'a, Self, u32, $channel, $channel>,
+                    lpspi::LpspiError,
+                > {
+                    let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
+                    transaction.bit_order = self.bit_order();
+
+                    self.wait_for_transmit_fifo_space()?;
+                    self.enqueue_transaction(&transaction);
+                    Ok(peripheral::full_duplex(rx, tx, self, buffer))
+                }
+            }
+        };
     }
 
-    /// Use a DMA channel to simultaneously read and write from a buffer
-    /// and the LPSPI peripheral.
-    ///
-    /// The future completes when `buffer` is filled and after sending `buffer` elements.
-    /// This call may block until space is available in the command queue. An error
-    /// indicates that there was an issue preparing the transaction, or there was an
-    /// issue waiting for space in the command queue.
-    pub fn dma_full_duplex<'a>(
-        &'a mut self,
-        rx: &'a mut Channel,
-        tx: &'a mut Channel,
-        buffer: &'a mut [u32],
-    ) -> Result<peripheral::FullDuplex<'a, Self, u32>, lpspi::LpspiError> {
-        let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
-        transaction.bit_order = self.bit_order();
+    lpspi_impl!(DMA3Channel, 1);
+    lpspi_impl!(DMA3Channel, 2);
 
-        self.wait_for_transmit_fifo_space()?;
-        self.enqueue_transaction(&transaction);
-        Ok(peripheral::full_duplex(rx, tx, self, buffer))
+    lpspi_impl!(DMA4Channel, 3);
+    lpspi_impl!(DMA4Channel, 4);
+    lpspi_impl!(DMA4Channel, 5);
+    lpspi_impl!(DMA4Channel, 6);
+}
+
+#[cfg(not(chip = "imxrt1180"))]
+mod dma_impls {
+    use crate::common::dma::DMAChannel;
+    use crate::dma::peripheral;
+
+    // LPUART
+    use crate::lpuart;
+
+    impl<P, const N: u8> lpuart::Lpuart<P, N> {
+        /// Use a DMA channel to write data to the UART peripheral
+        ///
+        /// Completes when all data in `buffer` has been written to the UART
+        /// peripheral.
+        pub fn dma_write<'a>(
+            &'a mut self,
+            channel: &'a mut DMAChannel,
+            buffer: &'a [u8],
+        ) -> peripheral::Write<'a, Self, u8, DMAChannel> {
+            peripheral::write(channel, buffer, self)
+        }
+
+        /// Use a DMA channel to read data from the UART peripheral
+        ///
+        /// Completes when `buffer` is filled.
+        pub fn dma_read<'a>(
+            &'a mut self,
+            channel: &'a mut DMAChannel,
+            buffer: &'a mut [u8],
+        ) -> peripheral::Read<'a, Self, u8, DMAChannel> {
+            peripheral::read(channel, self, buffer)
+        }
+    }
+
+    // LPUART
+    use crate::lpspi;
+
+    // Safety: a LPSPI can perform bi-directional I/O from a single buffer. Reads from
+    // the buffer are always performed before writes.
+    unsafe impl<P, const N: u8> peripheral::Bidirectional<u32> for lpspi::Lpspi<P, N> {}
+
+    impl<P, const N: u8> lpspi::Lpspi<P, N> {
+        /// Use a DMA channel to write data to the LPSPI peripheral.
+        ///
+        /// The future completes when all data in `buffer` has been written to the
+        /// peripheral. This call may block until space is available in the
+        /// command queue. An error indicates that there was an issue preparing the
+        /// transaction, or there was an issue while waiting for space in the command
+        /// queue.
+        pub fn dma_write<'a>(
+            &'a mut self,
+            channel: &'a mut DMAChannel,
+            buffer: &'a [u32],
+        ) -> Result<peripheral::Write<'a, Self, u32, DMAChannel>, lpspi::LpspiError> {
+            let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
+            transaction.bit_order = self.bit_order();
+
+            transaction.receive_data_mask = true;
+            self.wait_for_transmit_fifo_space()?;
+            self.enqueue_transaction(&transaction);
+            Ok(peripheral::write(channel, buffer, self))
+        }
+
+        /// Use a DMA channel to read data from the LPSPI peripheral.
+        ///
+        /// The future completes when `buffer` is filled. This call may block until
+        /// space is available in the command queue. An error indicates that there was
+        /// an issue preparing the transaction, or there was an issue waiting for space
+        /// in the command queue.
+        pub fn dma_read<'a>(
+            &'a mut self,
+            channel: &'a mut DMAChannel,
+            buffer: &'a mut [u32],
+        ) -> Result<peripheral::Read<'a, Self, u32, DMAChannel>, lpspi::LpspiError> {
+            let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
+            transaction.bit_order = self.bit_order();
+
+            transaction.transmit_data_mask = true;
+            self.wait_for_transmit_fifo_space()?;
+            self.enqueue_transaction(&transaction);
+            Ok(peripheral::read(channel, self, buffer))
+        }
+
+        /// Use a DMA channel to simultaneously read and write from a buffer
+        /// and the LPSPI peripheral.
+        ///
+        /// The future completes when `buffer` is filled and after sending `buffer` elements.
+        /// This call may block until space is available in the command queue. An error
+        /// indicates that there was an issue preparing the transaction, or there was an
+        /// issue waiting for space in the command queue.
+        pub fn dma_full_duplex<'a>(
+            &'a mut self,
+            rx: &'a mut DMAChannel,
+            tx: &'a mut DMAChannel,
+            buffer: &'a mut [u32],
+        ) -> Result<peripheral::FullDuplex<'a, Self, u32, DMAChannel, DMAChannel>, lpspi::LpspiError>
+        {
+            let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
+            transaction.bit_order = self.bit_order();
+
+            self.wait_for_transmit_fifo_space()?;
+            self.enqueue_transaction(&transaction);
+            Ok(peripheral::full_duplex(rx, tx, self, buffer))
+        }
     }
 }
 
@@ -301,7 +525,7 @@ use crate::adc;
 // for reads.
 unsafe impl<P, const N: u8> peripheral::Source<u16> for adc::DmaSource<P, N> {
     fn source_signal(&self) -> u32 {
-        ADC_DMA_RX_MAPPING[if N == ral::SOLE_INSTANCE {
+        ADC_DMA_RX_MAPPING[if N == crate::ral::SOLE_INSTANCE {
             N as usize
         } else {
             N as usize - 1
