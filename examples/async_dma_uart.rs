@@ -7,6 +7,8 @@
 #![no_std]
 #![no_main]
 
+use imxrt_hal::dma::channel::DmaChannel;
+
 #[imxrt_rt::entry]
 fn main() -> ! {
     let (

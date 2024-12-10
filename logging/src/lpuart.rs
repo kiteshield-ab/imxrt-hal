@@ -7,7 +7,10 @@
 //! is OK from the first phase.
 
 use imxrt_hal::{
-    dma::{channel, peripheral::Destination},
+    dma::{
+        channel::{self, DmaChannel},
+        peripheral::Destination,
+    },
     lpuart::{Direction, Lpuart},
 };
 use static_cell::StaticCell;

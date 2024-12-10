@@ -213,5 +213,5 @@ git = "https://github.com/imxrt-rs/imxrt-ral"
 git = "https://github.com/imxrt-rs/imxrt-iomuxc"
 
 [patch.crates-io.imxrt-dma]
-git = "https://github.com/mciantyre/imxrt-dma"
-branch = "edma34"
+git = "https://github.com/kiteshield-ab/imxrt-dma"
+branch = "edma34-support"

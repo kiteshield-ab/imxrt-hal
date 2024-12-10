@@ -136,7 +136,7 @@ impl Common {
 #[non_exhaustive]
 pub struct Common {
     /// DMA channels.
-    pub dma: [Option<hal::dma::channel::Channel>; hal::dma::CHANNEL_COUNT],
+    pub dma: [Option<hal::dma::DMA3Channel>; hal::dma::CHANNEL_COUNT],
 }
 
 #[cfg(chip = "imxrt1180")]
@@ -225,7 +225,8 @@ impl Common {
 
         // let dma = [const { None }; 32];
         // Safety: Only executes once per program.
-        let dma = unsafe { hal::dma::channels() };
+        let dma = unsafe { hal::dma::dma3_channels() };
+
         Self { dma }
     }
 }
