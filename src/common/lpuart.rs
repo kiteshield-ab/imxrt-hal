@@ -351,6 +351,25 @@ impl<P, const N: u8> Lpuart<P, N> {
         }
     }
 
+    /// Let the peripheral act as a DMA source.
+    ///
+    /// After this call, the peripheral will signal to the DMA engine whenever
+    /// it has an idle condition on the receiver.
+    pub fn enable_idle_dma_receive(&mut self) {
+        self.clear_status(Status::W1C);
+        ral::modify_reg!(ral::lpuart, self.lpuart, BAUD, RIDMAE: 1);
+    }
+
+    /// Stop the peripheral from acting as a DMA source for idle condition.
+    ///
+    /// See the DMA chapter in the reference manual to understand when this
+    /// should be called in the DMA transfer lifecycle.
+    pub fn disable_idle_dma_receive(&mut self) {
+        while ral::read_reg!(ral::lpuart, self.lpuart, BAUD, RIDMAE == 1) {
+            ral::modify_reg!(ral::lpuart, self.lpuart, BAUD, RIDMAE: 0);
+        }
+    }
+
     /// Attempts to write a single byte to the bus.
     ///
     /// Returns `false` if the fifo was already full.
@@ -484,6 +503,7 @@ impl<'a, const N: u8> Disabled<'a, N> {
             Direction::Tx => 1 << ral::read_reg!(ral::lpuart, self.lpuart, PARAM, TXFIFO),
         };
         let size = watermark.size.min(size - 1);
+
         match watermark.direction {
             Direction::Rx => {
                 ral::modify_reg!(ral::lpuart, self.lpuart, WATER, RXWATER: size);
@@ -513,6 +533,32 @@ impl<'a, const N: u8> Disabled<'a, N> {
             fifo | fifo_flags.bits()
         });
     }
+
+    /// Idle time for detecting an idle line condition.
+    pub fn set_idle(&mut self, idle_time: IdleTimeCharacter) {
+        ral::modify_reg!(ral::lpuart, self.lpuart, CTRL, IDLECFG: idle_time as u32);
+    }
+}
+
+/// Configuration value for the extended idle time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdleTimeCharacter {
+    /// 1 character.
+    _1,
+    /// 2 character.
+    _2,
+    /// 4 character.
+    _4,
+    /// 8 character.
+    _8,
+    /// 16 character.
+    _16,
+    /// 32 character.
+    _32,
+    /// 64 character.
+    _64,
+    /// 128 character.
+    _128,
 }
 
 /// Values specific to the baud rate.
@@ -688,6 +734,10 @@ bitflags::bitflags! {
         ///
         /// Triggers when the `RECEIVE_FULL` _status_ bit is high.
         const RECEIVE_FULL = 1 << 21;
+        /// Idle line interrupt enable.
+        ///
+        /// Triggers when the `IDLE` _status_ bit is high.
+        const IDLE_LINE = 1 << 20;
 
         // All of the above flags pertain to the CTRL
         // register. These flags pertain to the FIFO

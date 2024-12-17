@@ -29,6 +29,10 @@ are still exposed when building with a chip feature.
 
 Introduce an `imxrt1180` feature to support the RT1180 series.
 
+Add `Idle Line` support to LPUART.
+
+Make `imxrt1180` LPUART use the full FIFO.
+
 ## [0.5.9] 2024-11-24
 
 Correct LPSPI receive operations. Previously, `u8` and `u16` elements received
