@@ -483,13 +483,22 @@ impl<'a, const N: u8> Disabled<'a, N> {
             Direction::Tx => 1 << ral::read_reg!(ral::lpuart, self.lpuart, PARAM, TXFIFO),
         };
         let size = watermark.size.min(size - 1);
+
         match watermark.direction {
             Direction::Rx => {
                 ral::modify_reg!(ral::lpuart, self.lpuart, WATER, RXWATER: size);
+                // For RT1180 set FIFO size to 256.
+                #[cfg(chip = "imxrt1180")]
+                ral::modify_reg!(ral::lpuart, self.lpuart, FIFO, RXFE: RXFE_1, RXFIFOSIZE: RXFIFOSIZE_7);
+                #[cfg(not(chip = "imxrt1180"))]
                 ral::modify_reg!(ral::lpuart, self.lpuart, FIFO, RXFE: RXFE_1);
             }
             Direction::Tx => {
                 ral::modify_reg!(ral::lpuart, self.lpuart, WATER, TXWATER: size);
+                // For RT1180 set FIFO size to 256.
+                #[cfg(chip = "imxrt1180")]
+                ral::modify_reg!(ral::lpuart, self.lpuart, FIFO, TXFE: TXFE_1, TXFIFOSIZE: TXFIFOSIZE_7);
+                #[cfg(not(chip = "imxrt1180"))]
                 ral::modify_reg!(ral::lpuart, self.lpuart, FIFO, TXFE: TXFE_1);
             }
         };
@@ -512,6 +521,32 @@ impl<'a, const N: u8> Disabled<'a, N> {
             fifo | fifo_flags.bits()
         });
     }
+
+    /// Idle time for detecting an idle line condition.
+    pub fn set_idle(&mut self, idle_time: IdleTimeCharacter) {
+        ral::modify_reg!(ral::lpuart, self.lpuart, CTRL, IDLECFG: idle_time as u32);
+    }
+}
+
+/// Configuration value for the extended idle time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdleTimeCharacter {
+    /// 1 character.
+    _1,
+    /// 2 character.
+    _2,
+    /// 4 character.
+    _4,
+    /// 8 character.
+    _8,
+    /// 16 character.
+    _16,
+    /// 32 character.
+    _32,
+    /// 64 character.
+    _64,
+    /// 128 character.
+    _128,
 }
 
 /// Values specific to the baud rate.
@@ -685,6 +720,10 @@ bitflags::bitflags! {
         ///
         /// Triggers when the `RECEIVE_FULL` _status_ bit is high.
         const RECEIVE_FULL = 1 << 21;
+        /// Idle line interrupt enable.
+        ///
+        /// Triggers when the `IDLE` _status_ bit is high.
+        const IDLE_LINE = 1 << 20;
 
         // All of the above flags pertain to the CTRL
         // register. These flags pertain to the FIFO
