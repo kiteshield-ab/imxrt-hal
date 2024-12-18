@@ -1,7 +1,7 @@
 //! i.MX RT 1180 EVK, supporting the Cortex-M33.
 
-use imxrt_hal::{self as hal, iomuxc};
-use imxrt_iomuxc::imxrt1180::gpio_ad::*;
+use imxrt_hal::{self as hal};
+use imxrt_iomuxc::imxrt1180::{gpio_ad::*, gpio_aon::*};
 use imxrt_ral as ral;
 
 #[cfg(target_arch = "arm")]
@@ -23,8 +23,12 @@ pub const LPI2C_CLK_FREQUENCY: u32 = 24_000_000;
 /// Managed through GPIO4_27.
 pub type Led = imxrt_hal::rgpio::Output<GPIO_AD_27>;
 
+pub type ConsolePins = hal::lpuart::Pins<
+    GPIO_AON_08, // TX, interfaced with debug chip
+    GPIO_AON_09, // RX, interfaced with debug chip
+>;
 const CONSOLE_INSTANCE: u8 = 1;
-pub type Console = hal::lpuart::Lpuart<(), { CONSOLE_INSTANCE }>;
+pub type Console = hal::lpuart::Lpuart<ConsolePins, { CONSOLE_INSTANCE }>;
 
 pub const CONSOLE_BAUD: hal::lpuart::Baud = hal::lpuart::Baud::compute(UART_CLK_FREQUENCY, 115200);
 
@@ -40,18 +44,21 @@ impl Specifics {
             IOMUXC,
             IOMUXC_AON,
             RGPIO4,
-            LPUART1,
             ..
         } = unsafe { ral::Instances::instances() };
-        let mut pads = imxrt_hal::iomuxc::into_pads(IOMUXC, IOMUXC_AON);
-
-        iomuxc::alternate(&mut pads.gpio_aon.p08, 0); // LPUART1_TX
-        iomuxc::alternate(&mut pads.gpio_aon.p09, 0); // LPUART1_RX
+        let pads = imxrt_hal::iomuxc::into_pads(IOMUXC, IOMUXC_AON);
 
         let mut gpio4 = imxrt_hal::rgpio::Port::new(RGPIO4);
         let led = gpio4.output(pads.gpio_ad.p27);
 
-        let mut console = hal::lpuart::Lpuart::without_pins(LPUART1);
+        let console = unsafe { ral::lpuart::Instance::<{ CONSOLE_INSTANCE }>::instance() };
+        let mut console = hal::lpuart::Lpuart::new(
+            console,
+            ConsolePins {
+                tx: pads.gpio_aon.p08,
+                rx: pads.gpio_aon.p09,
+            },
+        );
         console.disable(|console| {
             console.set_baud(&CONSOLE_BAUD);
             console.set_parity(None);

@@ -214,7 +214,8 @@ required-features = ["board/lcd1602"]
 git = "https://github.com/imxrt-rs/imxrt-ral"
 
 [patch.crates-io.imxrt-iomuxc]
-git = "https://github.com/imxrt-rs/imxrt-iomuxc"
+git = "https://github.com/kiteshield-ab/imxrt-iomuxc"
+branch = "rt1180-lpuart-pads"
 
 [patch.crates-io.imxrt-dma]
 git = "https://github.com/kiteshield-ab/imxrt-dma"
