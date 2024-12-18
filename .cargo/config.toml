@@ -1,4 +1,5 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
+runner = "probe-rs run --speed 12000 --chip MIMXRT1189CVM8B"
 rustflags = [
     "-C", "link-arg=-Timxrt-link.x",
     "-C", "link-arg=-Tdefmt.x",
@@ -6,3 +7,6 @@ rustflags = [
     "-C", "link-arg=-error-limit=0",
     "-C", "link-arg=-nmagic",
 ]
+
+[build]
+target = "thumbv8m.main-none-eabi"

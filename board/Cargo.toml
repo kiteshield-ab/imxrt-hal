@@ -96,6 +96,7 @@ version = "0.1"
 optional = true
 
 [features]
+default = ["imxrt1180evk-cm33"]
 imxrt1010evk = [
     "imxrt-iomuxc/imxrt1010",
     "imxrt-ral/imxrt1011",

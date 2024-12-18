@@ -89,7 +89,7 @@
     clippy::missing_safety_doc
 )]
 
-use imxrt_ral as ral;
+pub use imxrt_ral as ral;
 
 mod chip;
 
