@@ -90,7 +90,7 @@ features = ["imxrt-ral/imxrt1062", "imxrt1060"]
 ###############
 
 [features]
-default = ["imxrt-usbd"]
+default = ["imxrt-usbd", "defmt", "imxrt1180", "imxrt-ral/imxrt1189_cm33"]
 imxrt1010 = ["imxrt-iomuxc/imxrt1010"]
 imxrt1020 = ["imxrt-iomuxc/imxrt1020"]
 imxrt1060 = ["imxrt-iomuxc/imxrt1060"]

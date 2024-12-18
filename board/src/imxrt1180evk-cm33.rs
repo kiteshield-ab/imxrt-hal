@@ -1,6 +1,8 @@
 //! i.MX RT 1180 EVK, supporting the Cortex-M33.
 
-use imxrt_hal::{self as hal};
+use core::num::NonZero;
+
+use imxrt_hal::{self as hal, lpuart::Watermark};
 use imxrt_iomuxc::imxrt1180::{gpio_ad::*, gpio_aon::*};
 use imxrt_ral as ral;
 

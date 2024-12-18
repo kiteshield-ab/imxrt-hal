@@ -6,3 +6,6 @@ rustflags = [
     "-C", "link-arg=-error-limit=0",
     "-C", "link-arg=-nmagic",
 ]
+
+[build]
+target = "thumbv8m.main-none-eabi"
