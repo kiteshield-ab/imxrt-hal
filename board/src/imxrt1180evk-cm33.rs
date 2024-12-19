@@ -72,5 +72,15 @@ pub mod interrupt {
     use crate::board_interrupts as syms;
     use crate::ral::Interrupt;
 
-    pub const INTERRUPTS: &[(Interrupt, syms::Vector)] = &[];
+    pub const BOARD_CONSOLE: Interrupt = Interrupt::LPUART1;
+    pub const BOARD_DMA_A: Interrupt = Interrupt::DMA3_CH7;
+    pub const BOARD_DMA_B: Interrupt = Interrupt::DMA3_CH11;
+
+    pub const INTERRUPTS: &[(Interrupt, syms::Vector)] = &[
+        (BOARD_CONSOLE, syms::BOARD_CONSOLE),
+        (BOARD_DMA_A, syms::BOARD_DMA_A),
+        (BOARD_DMA_B, syms::BOARD_DMA_B),
+    ];
 }
+
+pub use interrupt as Interrupt;
