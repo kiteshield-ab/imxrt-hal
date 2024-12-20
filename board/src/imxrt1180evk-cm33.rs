@@ -6,6 +6,8 @@ use imxrt_hal::{self as hal, lpuart::Watermark};
 use imxrt_iomuxc::imxrt1180::{gpio_ad::*, gpio_aon::*};
 use imxrt_ral as ral;
 
+use hal::ccm::clockroot::Lpuart0102;
+
 #[cfg(target_arch = "arm")]
 use defmt_rtt as _;
 #[cfg(target_arch = "arm")]
@@ -46,10 +48,27 @@ impl Specifics {
             IOMUXC,
             IOMUXC_AON,
             RGPIO4,
+            mut ANADIG_OSC,
+            mut ANADIG_PLL,
+            mut ANADIG_PMU,
+            mut CCM,
+            mut DCDC,
+            mut PHY_LDO,
             ..
         } = unsafe { ral::Instances::instances() };
-        let pads = imxrt_hal::iomuxc::into_pads(IOMUXC, IOMUXC_AON);
 
+        imxrt_hal::ccm::init(
+            &mut ANADIG_OSC,
+            &mut ANADIG_PLL,
+            &mut ANADIG_PMU,
+            &mut CCM,
+            &mut DCDC,
+            &mut PHY_LDO,
+        );
+        // Reconfigure Lpuart0102 to use SysPll3 (480/2/10 -> 24MHz)
+        imxrt_hal::ccm::clockroot::configure(&mut CCM, Lpuart0102::FromSysPll3Div2, 10);
+
+        let pads = imxrt_hal::iomuxc::into_pads(IOMUXC, IOMUXC_AON);
         let mut gpio4 = imxrt_hal::rgpio::Port::new(RGPIO4);
         let led = gpio4.output(pads.gpio_ad.p27);
 
