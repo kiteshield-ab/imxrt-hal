@@ -296,7 +296,7 @@ pub mod usbd {
 pub mod iomuxc {
     #[cfg_attr(chip = "none", allow(unused_imports))] // Nothing to export in this build.
     pub use crate::chip::iomuxc::*;
-    pub use imxrt_iomuxc::prelude::*;
+    pub use imxrt_iomuxc::*;
 }
 
 #[cfg_attr(chip = "none", allow(unused_imports))] // Nothing to export in this build.

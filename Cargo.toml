@@ -93,7 +93,13 @@ features = ["imxrt-ral/imxrt1062", "imxrt1060"]
 ###############
 
 [features]
-default = ["imxrt-usbd", "defmt", "imxrt1180", "imxrt-ral/imxrt1189_cm33"]
+default = [
+    "imxrt-usbd",
+    "defmt",
+    "imxrt1180",
+    "imxrt-ral/imxrt1189_cm33"
+]
+rt = ["imxrt-ral/rt"]
 imxrt1010 = ["imxrt-iomuxc/imxrt1010"]
 imxrt1020 = ["imxrt-iomuxc/imxrt1020"]
 imxrt1060 = ["imxrt-iomuxc/imxrt1060"]
@@ -113,15 +119,15 @@ eh02-unproven = []
 members = ["board", "logging"]
 
 [workspace.dependencies]
-imxrt-dma = "0.1"
-imxrt-iomuxc = "0.3.0"
+imxrt-dma = { git = "https://github.com/kiteshield-ab/imxrt-dma", branch = "edma34-support" }
+imxrt-iomuxc = { git = "https://github.com/kiteshield-ab/imxrt-iomuxc" }
+imxrt-ral = { git = "https://github.com/kiteshield-ab/imxrt-ral" }
 imxrt-hal = { version = "0.6", path = "." }
 imxrt-log = { path = "logging", default-features = false, features = [
     "log",
     "lpuart",
     "usbd",
 ] }
-imxrt-ral = "0.6"
 imxrt-rt = "0.1.5"
 imxrt-usbd = "0.3"
 defmt = "0.3"
@@ -211,13 +217,3 @@ name = "rtic_defmt_rtt"
 [[example]]
 name = "hal_i2c_lcd1602"
 required-features = ["board/lcd1602"]
-
-[patch.crates-io.imxrt-ral]
-git = "https://github.com/imxrt-rs/imxrt-ral"
-
-[patch.crates-io.imxrt-iomuxc]
-git = "https://github.com/imxrt-rs/imxrt-iomuxc"
-
-[patch.crates-io.imxrt-dma]
-git = "https://github.com/kiteshield-ab/imxrt-dma"
-branch = "edma34-support"
